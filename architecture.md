@@ -51,7 +51,7 @@
   - **hw-oracle** — 在真机上跑指令取得参考结果的硬件 oracle。文件夹 `modules/tools/hw-oracle/`
   - **release** — 打包发布产物和网页转换器。文件夹 `modules/tools/release/`
 - **web-converter** — 网页转换器：在浏览器里本地跑 relinker（文件不离开设备）。文件夹 `modules/web-converter/`
-- **build-ci** — 构建系统、第三方依赖和 CI。文件夹 `modules/build-ci/`
+- **buildsystem** — 构建系统、第三方依赖和 CI。文件夹 `modules/buildsystem/`
 
 ## 2. 依赖关系
 
@@ -65,7 +65,7 @@
 - **guest-tests ← system-libs、graphics、relinker**：guest 测试按真实导入方式调用这些库。
 - **web-converter ← relinker/wasm、tools/release**：网页加载 relinker 的 wasm 构建，由 `tools/build_web.py` 打包。
 - **tools/progress-report ← system-libs、graphics、shader-recompiler**：只读源码统计完成度，不链接它们。
-- **build-ci ← 全部**：顶层 CMake 构建所有模块，CI 跑构建、测试和规范检查。
+- **buildsystem ← 全部**：顶层 CMake 构建所有模块，CI 跑构建、测试和规范检查。
 
 ## 3. 连接方式
 
@@ -82,7 +82,7 @@
 
 ```mermaid
 flowchart LR
-    build["build-ci"]
+    build["buildsystem"]
     nid["nid"]
     subgraph relinkerG["relinker"]
         cli["cli"]

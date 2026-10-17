@@ -45,7 +45,7 @@
   - **hw-oracle** `in-progress`（按代码推断）
   - **release** `in-progress`（按代码推断）
 - **web-converter** `in-progress`（按代码推断）
-- **build-ci** `in-progress`（按代码推断）
+- **buildsystem** `in-progress`（按代码推断）
 
 ## 待问清单
 
