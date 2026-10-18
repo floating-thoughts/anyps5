@@ -1,4 +1,4 @@
-import { Archive, MEMORY_LIMIT, memoryEstimate, packageArchive } from "./archive.mjs";
+import { Archive, CONVERSION_LIMIT, MEMORY_LIMIT, memoryEstimate, packageArchive } from "./archive.mjs";
 
 let archive;
 let busy = false;
@@ -15,21 +15,45 @@ function report(event) {
   self.postMessage({ type: "progress", ...event });
 }
 
-async function downloadLibraries(target) {
+export async function downloadLibraries(target) {
   report({ phase: "Downloading system libraries" });
   const response = await fetch("./release.json", { cache: "no-cache" });
   if (!response.ok) throw new Error(`Cannot load release manifest (${response.status})`);
   const release = await response.json();
   const asset = release.platforms[target];
-  if (!asset || !/^libraries\/(windows|linux)-[a-f0-9]+\.zip$/u.test(asset.path) || !/^[a-f0-9]{64}$/u.test(asset.sha256)) throw new Error("Invalid release manifest");
+  if (!asset || !Number.isSafeInteger(asset.size) || asset.size < 0 || asset.size > 512 * 1024 * 1024 || !/^libraries\/(windows|linux)-[a-f0-9]+\.zip$/u.test(asset.path) || !/^[a-f0-9]{64}$/u.test(asset.sha256)) throw new Error("Invalid release manifest");
   const latestResponse = await fetch("https://api.github.com/repos/boykopovar/AnyPS5/releases/latest", { headers: { Accept: "application/vnd.github+json" } });
-  if (!latestResponse.ok) throw new Error(`Cannot verify the latest release (${latestResponse.status}). Try again later.`);
-  const latest = await latestResponse.json();
-  if (latest.tag_name !== release.tag) throw new Error("A new release is being published to this site. Try again after the Pages build finishes.");
+  if (!latestResponse.ok) {
+    const rateLimited = latestResponse.status === 429 || (latestResponse.status === 403 && latestResponse.headers.get("x-ratelimit-remaining") === "0");
+    if (!rateLimited) throw new Error(`Cannot verify the latest release (${latestResponse.status}). Try again later.`);
+    report({ phase: "Downloading system libraries", message: "GitHub API rate limit reached; using the libraries published with this site." });
+  } else {
+    const latest = await latestResponse.json();
+    if (latest.tag_name !== release.tag) throw new Error("A new release is being published to this site. Try again after the Pages build finishes.");
+  }
   const download = await fetch(asset.path);
   if (!download.ok) throw new Error(`Cannot download system libraries (${download.status})`);
-  const bytes = await download.arrayBuffer();
-  if (bytes.byteLength !== asset.size) throw new Error("System library download is incomplete");
+  const reader = download.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > asset.size) throw new Error("System library download is incomplete");
+      chunks.push(value);
+    }
+    if (size !== asset.size) throw new Error("System library download is incomplete");
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(byte => byte.toString(16).padStart(2, "0")).join("");
   if (digest !== asset.sha256) throw new Error("System library checksum mismatch");
   return { file: new Blob([bytes]), release, expandedBytes: asset.expandedBytes };
@@ -54,8 +78,10 @@ self.onmessage = async ({ data }) => {
     } else if (data.type === "convert") {
       if (data.target === "windows" && data.mode === "disk") throw new Error("Windows folder output is unavailable because browsers block DLL creation. Choose a ZIP save mode.");
       if (!archive) throw new Error("Select a ZIP or folder first");
+      const selectedBytes = archive.selectedBytesForTarget(data.target);
+      if (selectedBytes > CONVERSION_LIMIT) throw new Error(`Selected ${data.target} conversion input exceeds the 256 MiB conversion limit. Use the native relinker for this app.`);
       const libraries = await downloadLibraries(data.target);
-      const estimate = memoryEstimate(archive.totalBytes, archive.selectedBytes, libraries.expandedBytes, archive.entries.length);
+      const estimate = memoryEstimate(archive.totalBytes, selectedBytes, libraries.expandedBytes, archive.entries.length);
       if (data.mode === "memory" && estimate > MEMORY_LIMIT) throw new Error("This result exceeds the 256 MiB memory-download budget. Use Save ZIP to disk in desktop Chrome or Edge.");
       report({ phase: "Loading converter" });
       const { default: createRelinker } = await import("./native/relinker_wasm.mjs");

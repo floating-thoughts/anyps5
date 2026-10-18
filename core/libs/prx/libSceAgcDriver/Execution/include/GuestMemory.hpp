@@ -26,6 +26,7 @@ struct Commitment {
     bool whole = false;
 };
 Commitment DescribeCommitted(std::uint64_t address, std::size_t bytes, bool writable = false);
+void CopyGuestBytes(void* destination, const void* source, std::size_t bytes);
 void Read(std::uint64_t address, std::span<std::byte> destination, std::size_t alignment = 1);
 // Variants for resources in heaps the guest commits on demand (partially resident textures, GPU
 // scratch heaps): uncommitted pages read as zeros, are not compared, and are never stored.
@@ -60,6 +61,7 @@ void WriteChanged(std::uint64_t address, std::span<const std::byte> current, std
 // UnchangedSince is always false, so callers fall back to comparing bytes.
 bool WriteWatched();
 void Unwatch(std::uint64_t address, std::size_t bytes);
+void Rewatch(std::span<const std::pair<std::uint64_t, std::uint64_t>> ranges);
 bool ImportWatched(std::uint64_t address, std::size_t bytes, const std::function<bool()>& import, bool staysWatched = true);
 void SetUnwatchHook(void (*hook)(std::uint64_t address, std::size_t bytes));
 bool Watched(std::uint64_t address, std::size_t bytes);
@@ -81,6 +83,7 @@ std::uint64_t MarkWritten(std::uint64_t address, std::size_t bytes);
 std::uint64_t StoreOwnBytes(std::uint64_t address, std::size_t bytes, const std::function<void()>& store);
 std::uint64_t StoreOwnBytes(std::uint64_t address, std::span<const std::byte> source);
 bool StoredOver(std::uint64_t address, std::size_t bytes, std::uint64_t generation);
+bool StoredAllSince_nid_no_patch(std::uint64_t address, std::size_t bytes, std::uint64_t generation);
 // Collect epoch: within one epoch a range already collected is not walked again, CollectWrites
 // returns the current generation instead. A guest write landing between two collects of the same
 // epoch is seen by the next epoch, which is the ordering real hardware gives a CPU write made while a
@@ -99,6 +102,8 @@ bool StoredOver(std::uint64_t address, std::size_t bytes, std::uint64_t generati
 void BumpCollectEpoch();
 std::uint64_t CollectEpoch();
 std::uint64_t CollectEpochBumps();
+std::uint64_t ThreadCollectEpoch();
+std::uint64_t UnwatchSerial();
 std::uint64_t CollectWritesUncached(std::uint64_t address, std::size_t bytes);
 // The tracker's current generation (every collect and MarkWritten bumps it): a stamp taken after
 // a set of driver stores, for UnchangedSinceCollected to compare against later. Read under the
@@ -243,5 +248,6 @@ std::size_t CaptureCallerOffsets(std::span<unsigned long long> frames, unsigned 
 }
 
 extern "C" void AgcDriverCheckGuestMemory_nid_postfix(const void* pointer, std::size_t bytes, std::size_t alignment, bool writable = false);
+extern "C" void AgcDriverStoreGuestLabel_nid_postfix(std::uint64_t* pointer, std::uint64_t value);
 
 #endif

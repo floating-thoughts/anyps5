@@ -2,7 +2,10 @@
 #include <windows.h>
 #include <tlhelp32.h>
 #include "prx/libc/include/CallTrace.hpp"
+#include "prx/libc/include/FailureReport.hpp"
 #include "prx/libc/include/GuestArena.hpp"
+#include "prx/libc/include/Shutdown.hpp"
+#include "prx/libc/include/CrashText.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -304,6 +307,7 @@ LONG WINAPI ReportCrash(EXCEPTION_POINTERS* info) {
         // Another thread is already reporting; let it finish before this fault ends the process.
         Sleep(INFINITE);
     }
+    LibcRunEndFlush_nid_no_patch();
     const auto* context = info->ContextRecord;
     char line[MAX_PATH + 64];
     char threadName[128] = "";
@@ -332,11 +336,33 @@ LONG WINAPI ReportCrash(EXCEPTION_POINTERS* info) {
     Report("  r12 %016llx r13 %016llx r14 %016llx r15 %016llx\n", context->R12, context->R13, context->R14, context->R15);
     // The words each register points at, to recognise which structure a bad pointer came from.
     {
+        const DWORD indirectLength = GetEnvironmentVariableA("APS5_CRASH_INDIRECT_MEMORY", nullptr, 0);
+        const bool indirectMemory = indirectLength > 1;
         const std::pair<const char*, std::uint64_t> pointers[] = {{"rax", context->Rax}, {"rbx", context->Rbx}, {"rcx", context->Rcx}, {"rdx", context->Rdx}, {"rsi", context->Rsi}, {"rdi", context->Rdi}, {"r12", context->R12}, {"r13", context->R13}, {"r14", context->R14}, {"r15", context->R15}};
         for (const auto& [name, value] : pointers) {
             if (value < 0x10000 || (value & 7) != 0 || !IsReadable(value) || !IsReadable(value + 0x38)) continue;
             const auto* words = reinterpret_cast<const std::uint64_t*>(value);
             Report("  [%s] %016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n", name, words[0], words[1], words[2], words[3], words[4], words[5], words[6], words[7]);
+            if (!indirectMemory) continue;
+            for (std::size_t i = 0; i < 8; ++i) {
+                const auto address = words[i];
+                if (address < 0x10000 || IsExecutable(address)) continue;
+                std::uint64_t content[8]{};
+                SIZE_T copied = 0;
+                if (!ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address), content, sizeof(content), &copied) || copied != sizeof(content)) continue;
+                Report("  [[%s+0x%llx]] @%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx\n",
+                    name, static_cast<unsigned long long>(i * sizeof(*words)), static_cast<unsigned long long>(address),
+                    content[0], content[1], content[2], content[3], content[4], content[5], content[6], content[7]);
+            }
+        }
+    }
+    {
+        const std::pair<const char*, std::uint64_t> registers[] = {{"rax", context->Rax}, {"rbx", context->Rbx}, {"rcx", context->Rcx}, {"rdx", context->Rdx}, {"rsi", context->Rsi}, {"rdi", context->Rdi}, {"rbp", context->Rbp}, {"r8", context->R8}, {"r9", context->R9}, {"r10", context->R10}, {"r11", context->R11}, {"r12", context->R12}, {"r13", context->R13}, {"r14", context->R14}, {"r15", context->R15}};
+        static std::uint8_t bytes[crash_text::MaximumBytes];
+        static char text[960];
+        for (const auto& [name, value] : registers) {
+            if (value < 0x10000) continue;
+            if (crash_text::Format(bytes, ReadCode(value, bytes, sizeof(bytes)), text, sizeof(text))) Report("  [%s] %s\n", name, text);
         }
     }
     Report("  frame pointer chain:\n");
@@ -381,6 +407,7 @@ LONG WINAPI ReportCrash(EXCEPTION_POINTERS* info) {
     ReportCallTrace();
     std::fflush(stderr);
     ReportAllThreads();
+    LibcRunFailureReports_nid_no_patch();
     std::fflush(stderr);
     return EXCEPTION_CONTINUE_SEARCH;
 }
@@ -533,10 +560,12 @@ void ReportBacktrace(const char* what, bool reportThreads) {
 
 void AbortSignalHandler(int) {
     ReportBacktrace("abort() (SIGABRT)", true);
+    LibcRunFailureReports_nid_no_patch();
 }
 
 void InvalidParameterHandler(const wchar_t*, const wchar_t*, const wchar_t*, unsigned, std::uintptr_t) {
     ReportBacktrace("UCRT invalid parameter", true);
+    LibcRunFailureReports_nid_no_patch();
 }
 
 // Static destruction runs on the thread that ends the process (ExitProcess -> DLL_PROCESS_DETACH),

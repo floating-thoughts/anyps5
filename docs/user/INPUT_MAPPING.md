@@ -1,8 +1,8 @@
 # Controller, keyboard and mouse input
 
-AnyPS5 accepts SDL-mapped game controllers as well as its built-in keyboard and mouse bindings. Xbox-style controllers and PlayStation controllers recognized by SDL use the standard PS button layout; sticks and analog triggers are passed through, and controllers can be connected or disconnected while the game is running. The first recognized controller is used. AnyPS5 uses its built-in keyboard and mouse bindings when no configuration file is present. To change selected keyboard and mouse bindings, create `anyps5-input.ini` beside the generated game executable. Set `ANYPS5_INPUT_CONFIG` to use a file at another path.
+AnyPS5 accepts SDL-mapped game controllers as well as its built-in keyboard and mouse bindings. Xbox-style controllers and PlayStation controllers recognized by SDL use the standard PS button layout; sticks and analog triggers are passed through, and controllers can be connected or disconnected while the game is running. The first recognized controller is used. AnyPS5 uses its built-in keyboard and mouse bindings when no configuration file is present. To change selected keyboard and mouse bindings, create `anyps5-input.ini` beside the generated game executable. Set `ANYPS5_INPUT_CONFIG` to use a file at another path. Both the game directory and that path may contain any characters, such as `ü` or `日本`.
 
-For an Xbox-layout controller, A/B/X/Y map to Cross/Circle/Square/Triangle, LB/RB map to L1/R1, and LT/RT map to analog L2/R2. Start maps to Options. D-pad and stick-click buttons are supported. On a PlayStation controller, the touchpad click button is forwarded; finger touch coordinates are not implemented.
+For an Xbox-layout controller, A/B/X/Y map to Cross/Circle/Square/Triangle, LB/RB map to L1/R1, and LT/RT map to analog L2/R2. Start maps to Options. D-pad and stick-click buttons are supported. On a PlayStation controller, touchpad clicks and the positions of up to two fingers on the touchpad are forwarded. On other controllers, View (Back) presses the touchpad at its center.
 
 Each non-empty line has the form `Action = Type:Value`. Action names are case-insensitive. A `#` or `;` starts a comment. The first line for an action replaces its built-in bindings; later lines for the same action add alternate inputs. Duplicate entries for the same action are ignored. Actions omitted from the file keep their built-in bindings. UTF-8 files with or without a byte-order mark are supported.
 
@@ -17,6 +17,31 @@ While a title has a mouse open (`sceMouseOpen`) and the window is focused, AnyPS
 Game-controller bindings are enabled automatically and are not affected by keyboard or mouse overrides in this file.
 
 Supported actions are `Cross`, `Circle`, `Triangle`, `Square`, `L1`, `R1`, `L2`, `R2`, `L3`, `R3`, `Options`, `Up`, `Right`, `Down`, `Left`, `LeftStickLeft`, `LeftStickRight`, `LeftStickUp`, `LeftStickDown`, `RightStickLeft`, `RightStickRight`, `RightStickUp`, `RightStickDown`, `TouchLeft`, `TouchRight`, `ToggleMouse`, and `ToggleFullscreen`.
+
+### Default bindings
+
+Without an `anyps5-input.ini`, or for actions the file does not mention, these bindings apply:
+
+| Action | Keyboard and mouse |
+|--------|--------------------|
+| `Cross` | Return, Space |
+| `Circle` | C |
+| `Triangle` | I |
+| `Square` | Left mouse button |
+| `L1` | Q |
+| `R1` | E, Left Alt, Right Alt |
+| `R2` | Right mouse button |
+| `L3` | Left Shift, Right Shift |
+| `R3` | Left Ctrl, Right Ctrl |
+| `Options` | Escape |
+| `Up`, `Right`, `Down`, `Left` | Arrow keys; the mouse wheel also presses `Up` (wheel up) and `Down` (wheel down) |
+| `LeftStickLeft`, `LeftStickRight`, `LeftStickUp`, `LeftStickDown` | A, D, W, S |
+| `RightStickLeft`, `RightStickRight`, `RightStickUp`, `RightStickDown` | F, H, T, G |
+| `TouchLeft`, `TouchRight` | Backspace, Tab |
+| `ToggleMouse` | Middle mouse button |
+| `ToggleFullscreen` | F11 |
+
+`L2` has no built-in keyboard or mouse binding.
 
 For example, this changes Cross to F or Space, moves the left stick to IJKL, uses the mouse buttons for Square and R2, and keeps all other built-in bindings:
 

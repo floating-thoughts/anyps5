@@ -7,14 +7,6 @@
 
 extern "C" {
 
-APS5_EXPORT("YNw9Xk5iNWo", sceVideoOutUnknown_YNw9Xk5iNWo);
-int APS5_VABI sceVideoOutUnknown_YNw9Xk5iNWo(int handle, void* status) {
-    (void)handle;
-    (void)status;
-    NotImplemented_nid_no_patch("YNw9Xk5iNWo");
-    return 0;
-}
-
 int APS5_VABI sceVideoOutSetFlipMaster() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
@@ -33,6 +25,21 @@ int APS5_VABI sceVideoOutAdjustColor_(int handle, const VideoOutColorSettings* s
 int APS5_VABI sceVideoOutColorSettingsSetGamma_(VideoOutColorSettings* settings, float gamma, uint32_t settings_size) {
     if (settings_size < sizeof(VideoOutColorSettings)) throw std::runtime_error("sceVideoOutColorSettingsSetGamma_: VIDEO_OUT_ERROR_INVALID_VALUE");
     return sceVideoOutColorSettingsSetGamma(settings, gamma);
+}
+
+int APS5_VABI sceVideoOutColorSpaceConversionSettingsSetDefaultSdrToHdrConversion_(VideoOutColorSpaceConversionSettings* settings, uint32_t settings_size) {
+    if (settings_size < sizeof(VideoOutColorSpaceConversionSettings)) throw std::runtime_error("sceVideoOutColorSpaceConversionSettingsSetDefaultSdrToHdrConversion_: VIDEO_OUT_ERROR_INVALID_VALUE");
+    return sceVideoOutColorSpaceConversionSettingsSetDefaultSdrToHdrConversion(settings);
+}
+
+int APS5_VABI sceVideoOutColorSpaceConversionSettingsSetSdrToHdrConversion_(VideoOutColorSpaceConversionSettings* settings, float lumaScale, uint32_t option, uint32_t settings_size) {
+    if (settings_size < sizeof(VideoOutColorSpaceConversionSettings)) throw std::runtime_error("sceVideoOutColorSpaceConversionSettingsSetSdrToHdrConversion_: VIDEO_OUT_ERROR_INVALID_VALUE");
+    return sceVideoOutColorSpaceConversionSettingsSetSdrToHdrConversion(settings, lumaScale, option);
+}
+
+int APS5_VABI sceVideoOutAdjustColorSpaceConversion_(int handle, const VideoOutColorSpaceConversionSettings* settings, uint32_t settings_size) {
+    if (settings_size < sizeof(VideoOutColorSpaceConversionSettings)) throw std::runtime_error("sceVideoOutAdjustColorSpaceConversion_: VIDEO_OUT_ERROR_INVALID_VALUE");
+    return sceVideoOutAdjustColorSpaceConversion(handle, settings);
 }
 
 }

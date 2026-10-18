@@ -19,7 +19,9 @@ using namespace Elfpatcher;
 
 namespace {
 
+constexpr std::uint16_t kEtNone = 0;
 constexpr std::uint16_t kEtRel = 1;
+constexpr std::uint16_t kEtCore = 4;
 
 }
 
@@ -54,9 +56,14 @@ std::string RelinkerPipeline::relocationTypeName(std::uint32_t type) {
     }
 }
 
-RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf) {
-    if (elfReader->ReadHeader().Type == kEtRel)
+RelinkResult RelinkerPipeline::Relink() {
+    const auto inputType = elfReader->ReadHeader().Type;
+    if (inputType == kEtRel)
         throw RelinkerException("ET_REL relocatable inputs are not supported");
+    if (inputType == kEtNone)
+        throw RelinkerException("ET_NONE inputs do not specify an ELF object type");
+    if (inputType == kEtCore)
+        throw RelinkerException("ET_CORE core dumps are not executable images");
 
     auto programHeaders = elfReader->ReadProgramHeaders();
 
@@ -70,8 +77,8 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
         if (ph.Type == PT_LOAD && (ph.Flags & PF_X) != 0) {
             auto segment = elfReader->ReadSegment(ph);
             if (!segment.empty()) {
-                if (textSection.empty()) {
-                    textSection = segment;
+                if (executableSegments.empty()) {
+                    if (unusedFilterLevel != 0) textSection = segment;
                     textVAddr = ph.MappedAddress;
                 }
                 executableSegments.emplace_back(std::move(segment), ph.MappedAddress, ph.Offset);
@@ -525,6 +532,7 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
         entry.TargetSection = ".got";
         entry.TargetOffset = ref.RelocationAddress;
         entry.CallSitesResolved = false;
+        entry.Weak = ref.Weak;
         entries.push_back(std::move(entry));
     }
 
